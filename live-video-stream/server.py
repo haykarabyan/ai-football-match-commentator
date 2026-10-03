@@ -20,7 +20,7 @@ import time
 from aiohttp import web, WSMsgType
 
 from common import (CLIPS, DEFAULT_CLIP, DEFAULT_DESIGNED, DEFAULT_PREBUILT,
-                    HERE, PREBUILT_VOICES, clip_path,
+                    HERE, PREBUILT_VOICES, clip,
                     commentary_preview, design_voice, designed_voices,
                     make_client, persona_of)
 from live import CUE, KICKOFF, LiveCommentator, build_system_prompt
@@ -87,15 +87,14 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
         t = time.perf_counter() - t0
         print(f"  {int(t // 60):02d}:{t % 60:04.1f}  {text}", flush=True)
 
-    async def send(obj):
+    async def send(msg: dict | bytes):
+        """A JSON message, or raw PCM audio."""
         if not ws.closed:
             async with lock:
-                await ws.send_str(json.dumps(obj))
-
-    async def send_audio(data: bytes):
-        if not ws.closed:
-            async with lock:
-                await ws.send_bytes(data)
+                if isinstance(msg, bytes):
+                    await ws.send_bytes(msg)
+                else:
+                    await ws.send_str(json.dumps(msg))
 
     # ---- wait for the start message --------------------------------------
     start = None
@@ -110,22 +109,21 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
 
     mode = "designed" if start.get("mode") == "designed" else "native"
     source = start.get("source", "clip")
-    clip = start.get("clip", DEFAULT_CLIP)
+    clip_key = start.get("clip") or DEFAULT_CLIP
     voice = (start.get("voice") or "").strip() or (
         DEFAULT_DESIGNED if mode == "designed" else DEFAULT_PREBUILT)
     if mode == "native" and voice not in PREBUILT_VOICES:
         voice = DEFAULT_PREBUILT
-    context = start.get("context")
-    if context is None and source == "clip":
-        context = CLIPS.get(clip, CLIPS[DEFAULT_CLIP])[2]
+    path, _, clip_context = clip(clip_key)
+    context = start.get("context") or (clip_context if source == "clip" else None)
     persona = persona_of(voice) if mode == "designed" else None
 
     stats = {"lines": 0, "questions": 0}
-    where = "shared screen" if source == "screen" else clip_path(clip).name
+    where = "shared screen" if source == "screen" else path.name
     print(f"\n▶ {where} · {'designed voice' if mode == 'designed' else 'stock voice'} {voice}")
 
     # ---- speaker ----------------------------------------------------------
-    pending = {"cue_at": None, "cue_t": None, "hold_until": 0.0}
+    pending = {"cue_t": None, "hold_until": 0.0}
 
     # The page reports where its frame source is (clip: the model's copy's
     # currentTime; screen: seconds since start). Each cue is stamped with that
@@ -137,14 +135,14 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
             return None
         return round(clock["t"] + time.perf_counter() - clock["at"], 2)
 
-    async def on_spoken(text, tts_ms, cue_t, kind):
+    async def on_spoken(text, cue_t, kind):
         await send({"type": "spoken", "text": text, "cue_t": cue_t, "kind": kind})
 
     if mode == "designed":
-        speaker = DesignedSpeaker(client, voice, on_audio=send_audio,
+        speaker = DesignedSpeaker(client, voice, on_audio=send,
                                   on_spoken=on_spoken, log=log)
     else:
-        speaker = NativeSpeaker(on_audio=send_audio)
+        speaker = NativeSpeaker(on_audio=send)
 
     # ---- live -------------------------------------------------------------
     first_audio = {"seen": False}    # native: mark where each line's audio begins
@@ -152,12 +150,11 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
     # A viewer talking to the commentator. Live's VAD hears them and stops
     # generating; the server stops everything queued, waits for the answer,
     # plays it, then the director carries on.
-    q = {"active": False, "talking": False, "started": 0.0, "heard_at": 0.0,
-         "ended_at": None, "final": "", "interim": "", "answered_at": 0.0}
+    q = {"active": False, "talking": False, "heard_at": 0.0, "ended_at": None,
+         "final": "", "interim": "", "answered_at": 0.0}
 
-    async def begin_question(why):
-        now = time.perf_counter()
-        q.update(active=True, started=now, heard_at=now, ended_at=None,
+    async def begin_question():
+        q.update(active=True, heard_at=time.perf_counter(), ended_at=None,
                  final="", interim="")
         stats["questions"] += 1
         speaker.flush()
@@ -169,25 +166,22 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
         if kind == "start":
             q["talking"], q["heard_at"] = True, now
             if not q["active"]:
-                await begin_question("voice activity")
+                await begin_question()
         else:
             q["talking"], q["heard_at"] = False, now
             if q["active"]:
                 q["ended_at"] = now
 
     async def on_user(text, final):
-        now = time.perf_counter()
-        q["heard_at"] = now
+        if not q["active"]:
+            if time.perf_counter() - q["answered_at"] < 3.0:
+                return                  # late transcript of the question just answered
+            await begin_question()      # no voice activity signal came first
+        q["heard_at"] = time.perf_counter()
         if final:
             q["final"] = (q["final"] + " " + text).strip()
         else:
             q["interim"] = text                        # cumulative
-        if not q["active"]:
-            if now - q["answered_at"] < 3.0:
-                return                  # late transcript of the question just answered
-            # no voice activity signal came first: go on the transcript
-            await begin_question("transcript")
-            q["final"], q["interim"] = (text, "") if final else ("", text)
         await send({"type": "question", "text": q["final"] or q["interim"]})
 
     async def on_answer_start():
@@ -210,13 +204,15 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
             return
         if q["active"]:
             return                     # commentary from before the question
-        if mode == "native" and not first_audio["seen"] and pending["cue_at"]:
+        if mode == "native" and not first_audio["seen"] and live.cued_at:
             first_audio["seen"] = True
             await send({"type": "spoken", "text": None, "cue_t": pending["cue_t"]})
         await speaker.audio(pcm)
 
     async def on_text(frag, kind):
-        if kind == "line" and q["active"]:
+        # only the stock voice shows words as they're spoken; designed lines
+        # arrive whole with their audio ("spoken")
+        if mode != "native" or (kind == "line" and q["active"]):
             return
         await send({"type": "text", "text": frag, "kind": kind})
 
@@ -247,7 +243,6 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
     live_task = asyncio.create_task(live.run())
 
     async def cue(text=None):
-        pending["cue_at"] = time.perf_counter()
         pending["cue_t"] = source_time()
         first_audio["seen"] = False
         if text is None:
@@ -283,12 +278,10 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
             if live.last_frame_at is None or now - live.last_frame_at > 2.0:
                 continue                # paused / ended: don't talk over nothing
             if q["active"]:
-                words = q["final"] or q["interim"]
-                if (not words and q["ended_at"] is not None
-                        and now - q["ended_at"] > FALSE_ALARM_S):
-                    q["active"], live.answer_pending = False, False
-                    await send({"type": "resume"})
-                elif not q["talking"] and now - q["heard_at"] > ANSWER_TIMEOUT_S:
+                false_alarm = (not (q["final"] or q["interim"]) and q["ended_at"] is not None
+                               and now - q["ended_at"] > FALSE_ALARM_S)
+                no_answer = not q["talking"] and now - q["heard_at"] > ANSWER_TIMEOUT_S
+                if false_alarm or no_answer:
                     q["active"], live.answer_pending = False, False
                     await send({"type": "resume"})
                 continue
@@ -334,7 +327,6 @@ async def ws_handler(request: web.Request) -> web.WebSocketResponse:
         speaker.stop()
 
     print(f"■ {stats['lines']} lines, {stats['questions']} questions\n")
-    await send({"type": "closed"})
     if not ws.closed:
         await ws.close()
     return ws
@@ -346,7 +338,7 @@ async def index(request):
 
 
 async def video(request):
-    path = clip_path(request.match_info["key"])
+    path = clip(request.match_info["key"])[0]
     if not path.exists():
         raise web.HTTPNotFound(text=f"{path.name} not found in the project root")
     return web.FileResponse(path)
@@ -362,10 +354,13 @@ async def clips(request):
 
 async def voices(request):
     return web.json_response({
-        "prebuilt": PREBUILT_VOICES, "default_prebuilt": DEFAULT_PREBUILT,
+        "prebuilt": PREBUILT_VOICES,
         "designed": designed_voices(), "default_designed": DEFAULT_DESIGNED,
-        "lookahead": LOOKAHEAD_S,
     })
+
+
+def _error(exc: Exception) -> web.Response:
+    return web.json_response({"error": f"{type(exc).__name__}: {exc}"}, status=400)
 
 
 async def create_voice(request):
@@ -375,17 +370,17 @@ async def create_voice(request):
         made = await asyncio.to_thread(
             design_voice, client, body.get("description", ""),
             body.get("name", "").strip(), body.get("gender", "male"))
-        preview = await commentary_preview(client, made["id"])
+        made["preview_b64"] = await commentary_preview(client, made["id"])
     except Exception as exc:
-        return web.json_response({"error": f"{type(exc).__name__}: {exc}"}, status=400)
-    return web.json_response({**made, "preview_b64": preview})
+        return _error(exc)
+    return web.json_response(made)
 
 
 async def preview_voice(request):
     try:
         preview = await commentary_preview(client, request.match_info["id"])
     except Exception as exc:
-        return web.json_response({"error": f"{type(exc).__name__}: {exc}"}, status=400)
+        return _error(exc)
     return web.json_response({"preview_b64": preview})
 
 

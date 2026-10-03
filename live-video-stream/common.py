@@ -4,8 +4,6 @@ import hashlib
 import json
 import os
 import pathlib
-import shutil
-import wave
 
 from dotenv import load_dotenv
 from google import genai
@@ -23,9 +21,9 @@ LIVE_MODEL = "gemini-3.8-live"        # watches the frame stream, writes the lin
 TTS_MODEL = "gemini-3.8-flash-tts"    # speaks them in a Voice Design voice
 OUTPUT_RATE = 24000                   # both Live and TTS return 24 kHz PCM
 
-# Clips the UI can pick. The "final_*" clips are 30 s cuts of final_game.mp4
-# (2020 UCL final, PSG v Bayern, BT Sport feed). The context string goes into
-# the system prompt so the model can name teams instead of shirt colours.
+# Clips the UI can pick: key -> (file, label, match context). The final_* clips
+# are cut from the 2020 UCL final (see the top-level README). The context goes
+# into the system prompt so the model can name teams and players.
 UCL = ("2020 Champions League final in Lisbon, Paris Saint-Germain (dark blue "
        "shirts) v Bayern Munich (red shirts), BT Sport broadcast with a "
        "scoreboard overlay. Starting line-ups, shirt numbers: "
@@ -55,16 +53,12 @@ DEFAULT_CLIP = "goal"
 
 # Native mode: Live speaks for itself in one of these stock voices.
 PREBUILT_VOICES = ["Puck", "Charon", "Fenrir", "Orus", "Kore", "Aoede", "Leda", "Zephyr"]
-DEFAULT_PREBUILT = "Fenrir"
+DEFAULT_PREBUILT = "Fenrir"   # also Live's (unheard) voice in designed mode
 
 # Designed mode. Live accepts voice_config.voice="voice_..." but ignores it:
 # a made-up id connects just the same and every id comes out as one stock voice.
-# So designed voices go through TTS. The cache starts as a copy of the
-# chunked pipeline's.
+# So designed voices go through TTS.
 VOICE_CACHE = OUT / "designed_voices.json"
-_PIPELINE_CACHE = ROOT / "chunked-video-pipeline" / "out" / "designed_voices.json"
-if not VOICE_CACHE.exists() and _PIPELINE_CACHE.exists():
-    shutil.copy(_PIPELINE_CACHE, VOICE_CACHE)
 DEFAULT_DESIGNED = "voice_83ilus4bci19"   # "Roaring stadium announcer"
 
 PREVIEW_LINE = ("Here he comes, cutting inside, past one, past two... he shoots! "
@@ -75,8 +69,9 @@ def make_client() -> genai.Client:
     return genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
 
-def clip_path(key: str) -> pathlib.Path:
-    return CLIPS.get(key, CLIPS[DEFAULT_CLIP])[0]
+def clip(key: str) -> tuple[pathlib.Path, str, str]:
+    """(file, label, match context) for a clip key, or the default clip."""
+    return CLIPS.get(key, CLIPS[DEFAULT_CLIP])
 
 
 def voice_cache() -> dict:
@@ -146,11 +141,3 @@ async def commentary_preview(client, voice: str) -> str:
     data = interaction.output_audio.data
     return data if isinstance(data, str) else base64.b64encode(data).decode()
 
-
-def write_wav(path: pathlib.Path, pcm: bytes, rate: int = OUTPUT_RATE):
-    with wave.open(str(path), "wb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(rate)
-        w.writeframes(pcm)
-    return path

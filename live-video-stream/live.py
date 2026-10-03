@@ -10,7 +10,7 @@ at 1 fps the model called the demo goal a save, at 2 fps and up it saw the
 ball go in.
 
 The model only commentates when asked, so the session is cued with a short
-"next" text whenever the speaker is about to run dry (see CUE).
+"continue" text whenever the speaker is about to run dry (see CUE).
 
 The viewer's mic streams in continuously. Live's automatic voice activity
 detection decides when someone is talking and interrupts its own generation;
@@ -121,9 +121,8 @@ class LiveCommentator:
                              the transcript only after they stop)
     """
 
-    def __init__(self, client, *, system_prompt, on_line, on_text=None,
-                 on_audio=None, on_user=None, on_answer=None,
-                 on_answer_start=None, on_voice=None, voice_name="Fenrir",
+    def __init__(self, client, *, system_prompt, on_line, on_text, on_audio,
+                 on_user, on_answer, on_answer_start, on_voice, voice_name,
                  early_lines=False, log=print):
         self.client = client
         self.system_prompt = system_prompt
@@ -144,7 +143,6 @@ class LiveCommentator:
         self.cued_at = None              # when the last cue went out
         self.frames = 0
         self.last_frame_at = None
-        self.mic_chunks = 0
         self.resume_handle = None
         self.reconnects = 0
         self.answer_pending = False      # the next turn answers a viewer
@@ -217,8 +215,7 @@ class LiveCommentator:
             return
         if self.answer_pending:
             self._kind, self.answer_pending = "answer", False
-            if self.on_answer_start:
-                await self.on_answer_start()
+            await self.on_answer_start()
         else:
             self._kind = "line"
 
@@ -232,10 +229,10 @@ class LiveCommentator:
                     self.log(f"go_away (time left {msg.go_away.time_left}), reconnecting")
                     return
                 va = msg.voice_activity and msg.voice_activity.voice_activity_type
-                if va in (types.VoiceActivityType.ACTIVITY_START,
-                          types.VoiceActivityType.ACTIVITY_END) and self.on_voice:
-                    await self.on_voice("start" if va == types.VoiceActivityType.ACTIVITY_START
-                                        else "end")
+                if va == types.VoiceActivityType.ACTIVITY_START:
+                    await self.on_voice("start")
+                elif va == types.VoiceActivityType.ACTIVITY_END:
+                    await self.on_voice("end")
                 sc = msg.server_content
                 if not sc:
                     continue
@@ -243,22 +240,21 @@ class LiveCommentator:
                 # what the viewer is saying (interim = low latency, cumulative)
                 for tr, final in ((sc.interim_input_transcription, False),
                                   (sc.input_transcription, True)):
-                    if tr and tr.text and self.on_user:
+                    if tr and tr.text:
                         await self.on_user(tr.text, final)
 
                 if sc.model_turn:
                     self.generating = True
                     await self._open_turn()
                     for part in sc.model_turn.parts:
-                        if part.inline_data and self.on_audio:
+                        if part.inline_data:
                             await self.on_audio(part.inline_data.data, self._kind)
                 if sc.output_transcription and sc.output_transcription.text:
                     self.generating = True
                     await self._open_turn()
                     frag = sc.output_transcription.text
                     self._text += frag
-                    if self.on_text:
-                        await self.on_text(frag, self._kind)
+                    await self.on_text(frag, self._kind)
                     if (self._kind == "line" and self.early_lines and not self._emitted
                             and SENTENCE_END.search(self._text) and len(self._text.split()) >= 4):
                         await self._emit()
@@ -279,7 +275,7 @@ class LiveCommentator:
         self._emitted = True
         text, self._text = _clean(self._text), ""
         if self._kind == "answer":
-            if text and self.on_answer:
+            if text:
                 await self.on_answer(text)
             return
         if self.cued_at:
@@ -290,28 +286,26 @@ class LiveCommentator:
             await self.on_line(text)
 
     # ---- sending -------------------------------------------------------
+    async def _send(self, what: str, **realtime_input) -> bool:
+        try:
+            await self.session.send_realtime_input(**realtime_input)
+            return True
+        except Exception as exc:
+            self.log(f"{what} send failed: {exc}")
+            return False
+
     async def send_frame(self, jpeg: bytes):
         if self.session is None:
             self._held = jpeg            # sent as soon as the session is up
             return
         self.frames += 1
         self.last_frame_at = time.perf_counter()
-        try:
-            await self.session.send_realtime_input(
-                video=types.Blob(data=jpeg, mime_type="image/jpeg"))
-        except Exception as exc:
-            self.log(f"frame send failed: {exc}")
+        await self._send("frame", video=types.Blob(data=jpeg, mime_type="image/jpeg"))
 
     async def send_audio(self, pcm16k: bytes):
         """Viewer mic: 16-bit mono PCM at 16 kHz, streamed all the time."""
-        self.mic_chunks += 1
-        if self.session is None:
-            return
-        try:
-            await self.session.send_realtime_input(
-                audio=types.Blob(data=pcm16k, mime_type="audio/pcm;rate=16000"))
-        except Exception as exc:
-            self.log(f"mic send failed: {exc}")
+        if self.session is not None:
+            await self._send("mic", audio=types.Blob(data=pcm16k, mime_type="audio/pcm;rate=16000"))
 
     def expect_answer(self):
         """The viewer is asking something: their reply turn is next.
@@ -326,12 +320,8 @@ class LiveCommentator:
         if self.session is None:
             return
         self.cued_at = time.perf_counter()
-        self.generating = True        # until the reply's turn completes
-        try:
-            await self.session.send_realtime_input(text=text)
-        except Exception as exc:
-            self.generating = False
-            self.log(f"cue failed: {exc}")
+        # busy until the reply's turn completes
+        self.generating = await self._send("cue", text=text)
 
     async def close(self):
         self._closing = True

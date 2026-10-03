@@ -20,10 +20,8 @@ BYTES_PER_S = OUTPUT_RATE * 2
 class _Clock:
     def __init__(self):
         self.play_end = 0.0
-        self.audio_bytes = 0
 
     def add(self, nbytes: int):
-        self.audio_bytes += nbytes
         self.play_end = max(self.play_end, time.perf_counter()) + nbytes / BYTES_PER_S
 
     def backlog(self) -> float:
@@ -93,7 +91,7 @@ class _Line:
         self.text, self.cue_t, self.kind, self.epoch = text, cue_t, kind, epoch
         self.at = time.perf_counter()        # when the text arrived
         self.audio: asyncio.Queue = asyncio.Queue()   # PCM chunks, then None
-        self.first_ms = None
+        self.started = False                 # TTS audio has begun
         self.task = None
 
 
@@ -113,13 +111,12 @@ class DesignedSpeaker(_Clock):
         self.client = client
         self.voice_id = voice_id
         self.on_audio = on_audio
-        self.on_spoken = on_spoken          # (text, tts_first_audio_ms, cue_t, kind)
+        self.on_spoken = on_spoken          # (text, cue_t, kind) as a line starts
         self.log = log
         self.stale_s = stale_s
         self.order: asyncio.Queue = asyncio.Queue()
         self.pending: list[_Line] = []      # arrived, not yet started playing
-        self.dropped = 0
-        self.tts_ms: list[float] = []
+        self.tts_s: list[float] = []        # measured time to first audio
         self.expected_tts_s = 2.9           # updated from measured first-audio times
         self.epoch = 0                      # bumped by flush(); older lines are dead
         self._task = asyncio.create_task(self._forward())
@@ -141,7 +138,7 @@ class DesignedSpeaker(_Clock):
         now = time.perf_counter()
         end = max(self.play_end, now)
         for ln in self.pending:
-            if ln.first_ms is None:
+            if not ln.started:
                 end = max(end, ln.at + self.expected_tts_s)
             end += speech_seconds(ln.text)
         return end - now
@@ -171,11 +168,10 @@ class DesignedSpeaker(_Clock):
                 continue                          # TTS failed, or flushed
             late = time.perf_counter() - max(self.play_end, ln.at + self.expected_tts_s)
             if ln.kind == "line" and late > self.stale_s and not IMPORTANT.search(ln.text):
-                self.dropped += 1
                 self.log(f"  dropped stale line ({late:.1f}s late): {ln.text}")
                 ln.task.cancel()
                 continue
-            await self.on_spoken(ln.text, ln.first_ms, ln.cue_t, ln.kind)
+            await self.on_spoken(ln.text, ln.cue_t, ln.kind)
             chunk = first
             while chunk is not None and ln.epoch == self.epoch:
                 self.add(len(chunk))
@@ -198,11 +194,11 @@ class DesignedSpeaker(_Clock):
             )
             async for ev in stream:
                 if ev.event_type == "step.delta" and ev.delta.type == "audio":
-                    if ln.first_ms is None:
-                        ln.first_ms = (time.perf_counter() - ln.at) * 1000
-                        self.tts_ms.append(ln.first_ms)
-                        recent = sorted(self.tts_ms[-5:])
-                        self.expected_tts_s = recent[len(recent) // 2] / 1000
+                    if not ln.started:
+                        ln.started = True
+                        self.tts_s.append(time.perf_counter() - ln.at)
+                        recent = sorted(self.tts_s[-5:])
+                        self.expected_tts_s = recent[len(recent) // 2]
                     ln.audio.put_nowait(base64.b64decode(ev.delta.data))
         except asyncio.CancelledError:
             raise

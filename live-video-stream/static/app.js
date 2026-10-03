@@ -217,8 +217,7 @@ async function start(){
   running=true; measured=[]; pendingCue=null; videoStarted=false; holding=false; ignoreAudio=false;
   $('transcript').querySelectorAll('.flow,.bubble,.note').forEach(n=>n.remove());
   flowEl=null; openSeg=null;
-  $('start').textContent='Stop'; $('start').classList.add('stop'); $('start').onclick=stop;
-  for(const id of ['source','voice','preview']) $(id).disabled=true;
+  setRunning(true);
   setStatus('Warming up…','warming'); $('veil').hidden=screen;
 
   const {mode, voice}=chosen();
@@ -248,7 +247,6 @@ function onMessage(e, mode){
       begin();
       break;
     case 'text':                           // stock voice: words stream in as spoken
-      if(mode!=='native') break;
       if(m.kind==='answer'){ if(aEl){ aEl.lastChild.textContent+=m.text; caption(aEl.lastChild.textContent,true); } }
       else{
         if(!openSeg) openSeg=seg();
@@ -283,7 +281,6 @@ function onMessage(e, mode){
       qEl=null; setStatus('Live','live');
       break;
     case 'error': note(m.detail, true); break;
-    case 'closed': break;
   }
 }
 
@@ -317,6 +314,12 @@ async function begin(){
   video.onended=()=>setTimeout(()=>{ stop(); setStatus('Full time','idle'); },1500);
 }
 
+function setRunning(on){
+  $('start').textContent=on?'Stop':'Start'; $('start').classList.toggle('stop',on);
+  $('start').onclick=on?stop:start;
+  for(const id of ['source','voice','preview']) $(id).disabled=on;
+}
+
 function goLive(){ $('veil').hidden=true; $('liveBadge').hidden=false; setStatus('Live','live'); }
 
 function stop(){
@@ -330,8 +333,7 @@ function stop(){
   stopMic(); player.flush();
   $('veil').hidden=true; $('liveBadge').hidden=true; $('mic').hidden=true;
   $('caption').classList.remove('on');
-  $('start').textContent='Start'; $('start').classList.remove('stop'); $('start').onclick=start;
-  for(const id of ['source','voice','preview']) $(id).disabled=false;
+  setRunning(false);
   setStatus('Ready','idle');
 }
 
