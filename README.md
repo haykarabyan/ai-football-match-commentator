@@ -20,12 +20,12 @@ stream, hears you through the mic, and speaks.
 The commentator's voice *and* personality come from a plain-text description,
 so a new commentator is one paragraph away. A few ideas:
 
-- **The nonchalant commentator.** Clearly not that into the job. Calls a
+- 😴 **The nonchalant commentator.** Clearly not that into the job. Calls a
   last-minute winner like he's reading a shopping list: "Yeah... that's a
   goal, I guess."
-- **The brainrot commentator.** Mostly normal, until the clock hits the 67th
+- 🧠🔥 **The brainrot commentator.** Mostly normal, until the clock hits the 67th
   minute. Then he screams "SIX SEVEN!" at the top of his lungs, every time.
-- **A commentator for your league.** Amateur and youth matches almost never
+- 🏟️ **A commentator for your league.** Amateur and youth matches almost never
   get a commentator. Give your Sunday league its own, with your local accent.
 
 Describe one under **Create your own commentator** in the app and it's ready
