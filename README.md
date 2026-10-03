@@ -27,6 +27,10 @@ so a new commentator is one paragraph away. A few ideas:
   minute. Then he screams "SIX SEVEN!" at the top of his lungs, every time.
   Every diving save is a "BOMBARDIRO CROCODILO!" 🐊✈️, and Mbappé is only
   ever "Dictator Mbappé" 👑.
+- 📣 **The biased commentator.** Pick your club and he's on your side, all
+  match. Your team is always robbed, and the other lot always gets the call:
+  "And here we go again, it's Real VARdrid getting help from VARcelona's
+  favourite referee!" 🙄
 - 🏟️ **A commentator for your league.** Amateur and youth matches almost never
   get a commentator. Give your Sunday league its own, with your local accent.
 
