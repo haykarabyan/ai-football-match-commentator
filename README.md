@@ -25,6 +25,8 @@ so a new commentator is one paragraph away. A few ideas:
   goal, I guess."
 - 🧠🔥 **The brainrot commentator.** Mostly normal, until the clock hits the 67th
   minute. Then he screams "SIX SEVEN!" at the top of his lungs, every time.
+  Every diving save is a "BOMBARDIRO CROCODILO!" 🐊✈️, and Mbappé is only
+  ever "Dictator Mbappé" 👑.
 - 🏟️ **A commentator for your league.** Amateur and youth matches almost never
   get a commentator. Give your Sunday league its own, with your local accent.
 
