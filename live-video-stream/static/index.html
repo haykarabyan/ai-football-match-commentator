@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Live AI Commentary</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7l3.5 2.5-1.3 4h-4.4l-1.3-4z" fill="currentColor"/></svg>
+    </span>
+    <div>
+      <h1>Live AI Commentary</h1>
+      <p>Gemini watches the match and calls it as it happens. Ask it anything, out loud.</p>
+    </div>
+  </div>
+  <span class="status" id="status" data-state="idle">Ready</span>
+</header>
+
+<main>
+  <section class="stage-col">
+    <div class="stage">
+      <video id="video" muted playsinline preload="auto"></video>
+      <video id="feed" class="feed" muted playsinline preload="auto" aria-hidden="true"></video>
+      <div class="badge live" id="liveBadge" hidden><span></span>LIVE</div>
+      <div class="badge mic" id="mic" hidden><span></span>Listening</div>
+      <div class="caption" id="caption"></div>
+      <div class="veil" id="veil" hidden><div class="spinner"></div><p>The commentator is taking their seat…</p></div>
+    </div>
+
+    <div class="bar">
+      <label class="field">
+        <span>Match</span>
+        <select id="source"></select>
+      </label>
+      <label class="field">
+        <span>Commentator</span>
+        <div class="with-btn">
+          <select id="voice"></select>
+          <button type="button" class="icon" id="preview" title="Hear this commentator" aria-label="Hear this commentator">
+            <svg viewBox="0 0 24 24" width="16" height="16"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+          </button>
+        </div>
+      </label>
+      <button id="start" class="primary">Start</button>
+    </div>
+
+    <label class="field teams" id="teamsBox" hidden>
+      <span>Who's playing?</span>
+      <input id="context" placeholder="e.g. Real Madrid (white) v Barcelona (blue and red), La Liga">
+    </label>
+
+    <details class="card design">
+      <summary>
+        <span>Create your own commentator</span>
+        <small>Describe a voice and Gemini designs it</small>
+      </summary>
+      <div class="design-body">
+        <div class="row">
+          <input id="dName" placeholder="Name, e.g. Irish legend">
+          <select id="dGender"><option value="male">Male voice</option><option value="female">Female voice</option></select>
+        </div>
+        <textarea id="dDesc" rows="3" placeholder="A booming Irish football commentator in his sixties, warm and gravelly, who builds slowly and then explodes on every chance."></textarea>
+        <div class="row end">
+          <span class="muted" id="dStatus"></span>
+          <button type="button" id="design" class="secondary">Design voice</button>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <aside class="card feed-col">
+    <div class="feed-head">
+      <h2>Commentary</h2>
+    </div>
+    <div class="transcript" id="transcript">
+      <div class="empty" id="empty">
+        <p>Pick a match and a commentator, then press <b>Start</b>.</p>
+        <p class="muted">Once it's live, just ask:<br>“Who is Bayern's number 9?”<br>“Who's PSG's striker?”</p>
+        <p class="muted small">Headphones work best: from speakers, the commentary can reach the mic.</p>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>

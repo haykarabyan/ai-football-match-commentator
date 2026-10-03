@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gemini Live Playground</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>Gemini Live playground</h1>
+  <p class="sub">Key stays on the server. Browser &rarr; localhost WebSocket &rarr; Gemini Live.
+     Use headphones.</p>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="live">Live chat</button>
+  <button class="tab" data-tab="translate">Translate</button>
+  <button class="tab" data-tab="captions">Captions</button>
+</nav>
+
+<!-- ------------------------------------------------- Live chat -->
+<section class="panel active" id="panel-live">
+  <div class="controls">
+    <button class="mic" id="mic-live">Hold to talk</button>
+    <label class="check">
+      <input type="checkbox" id="ext-thinking">
+      extended thinking <code>gemini-3.8-live-extended-thinking</code>
+    </label>
+  </div>
+  <p class="hint">Try: <em>&ldquo;what time is it?&rdquo;</em> (instant tool) then
+     <em>&ldquo;what&rsquo;s on the hackathon schedule?&rdquo;</em> &mdash; that one sleeps 6&nbsp;s on
+     purpose so you can hear whether it keeps talking.</p>
+  <div class="meter"><div class="meter-fill" id="level-live"></div></div>
+  <div class="status" id="status-live">idle</div>
+  <div class="log" id="log-live"></div>
+</section>
+
+<!-- ------------------------------------------------- Translate -->
+<section class="panel" id="panel-translate">
+  <div class="controls">
+    <button class="mic" id="mic-translate">Hold to talk</button>
+    <label class="check">speak
+      <select id="src-lang">
+        <option value="en">English</option>
+        <option value="hy">Armenian</option>
+        <option value="sv">Swedish</option>
+        <option value="de">German</option>
+        <option value="fr">French</option>
+        <option value="es">Spanish</option>
+        <option value="ru">Russian</option>
+      </select>
+    </label>
+    <label class="check">hear
+      <select id="tgt-lang">
+        <option value="hy">Armenian</option>
+        <option value="sv">Swedish</option>
+        <option value="en">English</option>
+        <option value="de">German</option>
+        <option value="fr">French</option>
+        <option value="es">Spanish</option>
+        <option value="ru">Russian</option>
+      </select>
+    </label>
+  </div>
+  <p class="hint">Only <code>target_language_code</code> is actually sent &mdash; the source
+     language is auto-detected, so the &ldquo;speak&rdquo; picker is just a label for you.
+     Audio goes out in 100&nbsp;ms chunks.</p>
+  <div class="meter"><div class="meter-fill" id="level-translate"></div></div>
+  <div class="status" id="status-translate">idle</div>
+  <div class="log" id="log-translate"></div>
+</section>
+
+<!-- ------------------------------------------------- Captions -->
+<section class="panel" id="panel-captions">
+  <div class="controls">
+    <button class="mic" id="mic-captions">Hold to talk</button>
+    <label class="check"><input type="checkbox" id="smart-mode"> smart mode</label>
+    <label class="check vocab">custom vocabulary
+      <input type="text" id="vocabulary" placeholder="Gemini, hackathon, Yerevan">
+    </label>
+  </div>
+  <p class="hint">Language detection is automatic (<code>language_codes: []</code>). The API
+     does <strong>not</strong> return which language it picked, so the badge comes from a
+     separate <code>gemini-3.5-flash-lite</code> call and lands ~2&nbsp;s late.
+     Switch languages mid-sentence and watch it follow.</p>
+  <div class="meter"><div class="meter-fill" id="level-captions"></div></div>
+  <div class="status" id="status-captions">idle</div>
+  <div class="interim" id="interim-captions"></div>
+  <div class="log captions" id="log-captions"></div>
+</section>
+
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>

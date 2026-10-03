@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hybrid AI Football Commentary</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>Hybrid AI football commentary</h1>
+  <p class="sub">
+    <b>eyes</b> gemini-3.8-flash on real 4s video chunks &rarr;
+    <b>match log</b> &rarr;
+    <b>voice</b> gemini-3.8-flash-tts in a designed commentator voice
+  </p>
+</header>
+
+<main>
+  <div class="left">
+    <video id="video" muted playsinline preload="auto"></video>
+    <div class="controls">
+      <button id="start">Start</button>
+      <label class="check">clip
+        <select id="clip"></select>
+      </label>
+      <label class="check">commentator
+        <select id="voice"></select>
+      </label>
+      <span class="status" id="status">idle</span>
+    </div>
+    <div class="stats" id="stats"></div>
+
+    <h2>Commentary</h2>
+    <div class="transcript" id="transcript"></div>
+  </div>
+
+  <aside class="right">
+    <h2>Match log <span class="dim" id="score"></span></h2>
+    <div class="log" id="log"></div>
+  </aside>
+</main>
+
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>

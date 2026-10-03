@@ -1,0 +1,23 @@
+# secrets
+.env
+.env.*
+
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# match footage is not committed (broadcast clips; see README)
+*.mp4
+*.webm
+*.mov
+
+# generated output (keep the designed-voice ids)
+**/out/*
+!**/out/designed_voices.json
+
+# local tooling
+.claude/
+.agents/
+skills-lock.json
+.DS_Store

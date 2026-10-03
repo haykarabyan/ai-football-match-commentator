@@ -1,0 +1,32 @@
+{
+  "5f1581a82e2982e6": {
+    "id": "voice_83ilus4bci19",
+    "description": "A roaring stadium announcer with a deep gravelly voice, huge energy, rolling his vowels when the ball nears goal.",
+    "name": "Roaring stadium announcer"
+  },
+  "e20acb2d41a059fe": {
+    "id": "voice_yshgis75mcg9",
+    "description": "A world-class television football commentator in his late forties. Rich, warm, resonant male voice with real carrying power and crisp British diction. Fast and punchy when the ball moves, lifting into roaring excitement for shots and goals.",
+    "name": "British TV commentator"
+  },
+  "93e593f4f716f77b": {
+    "id": "voice_bbajjhxju52c",
+    "description": "A warm, excitable English woman in her sixties calling a football match, gentle and kindly but lifting into delight when a goal goes in.",
+    "name": "Excitable English grandmother"
+  },
+  "5721fd03b978a7f8": {
+    "id": "voice_s61irdupxk2c",
+    "description": "A sharp, high-energy female football commentator in her thirties with a bright, powerful voice and crisp English accent, exploding with excitement when the ball nears goal.",
+    "name": "High-octane female commentator"
+  },
+  "78f489cbfa7c8f87": {
+    "id": "voice_zdcugfqamp9z",
+    "description": "A gravel-voiced veteran Scottish football commentator, booming and theatrical, his voice cracking with passion on every shot and goal.",
+    "name": "Scottish veteran"
+  },
+  "533e1c187ccb6a3b": {
+    "id": "voice_vrjgo7m9s5dl",
+    "description": "A fiery Latin American football commentator speaking English with a booming tenor voice, very fast and passionate, holding every goal call in a long joyful roar.",
+    "name": "Latin American goal screamer"
+  }
+}
